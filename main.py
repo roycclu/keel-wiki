@@ -5,14 +5,20 @@ from steps import (
     parser_extract_citation_targets, 
     search_web, 
     judge_support_from_sources, 
-    submit_with_citation
+    submit_with_citation,
+    prepare_citation_edit
 )
 from models import (
+    PreparedCitationEdit,
     TargetPage,
     CitationTarget,
     WebSearchEvidence,
     DecisionCitationSupport
 )
+
+from pywikibot import config
+config.simulate = True
+
 
 def main():
     page_targets: list[TargetPage] = find_citation_needed()
@@ -53,7 +59,9 @@ def main():
     if not 0 <= evidence_index < len(web_hits):
         raise ValueError("Selected evidence index is out of range")
 
-    submit_with_citation(target_page, target_citation, web_hits[decision_support.evidence_index], decision_support)
+    prepared_citation: PreparedCitationEdit = prepare_citation_edit(target_page, target_citation, web_hits[decision_support.evidence_index])
+
+    submit_with_citation(target_page, prepared_citation)
 
 if __name__ == "__main__":
     main()

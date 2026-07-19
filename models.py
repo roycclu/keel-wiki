@@ -31,3 +31,8 @@ class DecisionCitationSupport(BaseModel):
     supports_claim: bool
     evidence_index: int | None
     explanation: str
+
+class PreparedCitationEdit(BaseModel):
+    original_wikitext: str
+    new_wikitext: str
+    citation: str

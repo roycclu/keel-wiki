@@ -6,7 +6,8 @@ from models import (
     TargetPage,
     CitationTarget,
     WebSearchEvidence,
-    DecisionCitationSupport
+    DecisionCitationSupport,
+    PreparedCitationEdit
 )
 
 WIKI_API_BASE_URL: str = "https://test.wikipedia.org/w/api.php"
@@ -153,16 +154,6 @@ def search_web(
 from datetime import date
 from openai import OpenAI
 
-def render_citation(web_hit: WebSearchEvidence, result: DecisionCitationSupport) -> str:
-
-    return (
-        "<ref>{{cite web "
-        f"|title={web_hit.title} "
-        f"|url={web_hit.url} "
-        f"|access-date={date.today().isoformat()}"
-        "}}</ref>"
-    )
-
 DECISION_JUDGE_SUPPORT_FROM_SOURCES = {
     "role": "system",
     "content": "Determine whether any of the sources directly supports the claim before the citation-needed marker. "
@@ -208,30 +199,51 @@ def judge_support_from_sources(
 
 
 
+# def render_citation(web_hit: WebSearchEvidence, result: DecisionCitationSupport) -> str:
 
+#     return (
+        
+#     )
+
+
+
+def prepare_citation_edit(
+    target_page: TargetPage,
+    citation_target: CitationTarget,
+    web_hit: WebSearchEvidence
+) -> PreparedCitationEdit:
+
+    citation = (
+        "<ref>{{cite web "
+        f"|title={web_hit.title} "
+        f"|url={web_hit.url} "
+        f"|access-date={date.today().isoformat()}"
+        "}}</ref>"
+    )   
+    new_wikitext = citation_target.marked_wikitext.replace(citation_target.marker, citation, 1)
+
+    return PreparedCitationEdit(
+        original_wikitext=target_page.wikitext,
+        new_wikitext=new_wikitext,
+        citation=citation,
+    )
 
 import httpx
 
 def submit_with_citation(
     target_page: TargetPage,
-    citation_target: CitationTarget, 
-    web_hit: WebSearchEvidence,
-    decision_support: DecisionCitationSupport
+    citation_edit: PreparedCitationEdit
     ):
     # async with httpx.AsyncClient() as client:
-
-        citation = render_citation(web_hit, decision_support)
-        new_wikitext = citation_target.marked_wikitext.replace(citation_target.marker, citation, 1)
-
-        payload = {
-        "action": "edit",
-        "title": target_page.title,
-        "text": new_wikitext,
-        "summary": decision_support.explanation,
-        "baserevid": target_page.base_revid,
-        "nocreate": 1,
-        #   "token": csrf_token,
-        }
+        # payload = {
+        # "action": "edit",
+        # "title": target_page.title,
+        # "text": new_wikitext,
+        # "summary": decision_support.explanation,
+        # "baserevid": target_page.base_revid,
+        # "nocreate": 1,
+        # #   "token": csrf_token,
+        # }
 
 
         site = pywikibot.Site(WIKI_SITE)
@@ -243,13 +255,13 @@ def submit_with_citation(
             )
 
         current_wikitext = page.text
-        pywikibot.showDiff(current_wikitext, new_wikitext)
-        confirmation = input("Save this edit? [y/N] ")
-        if confirmation.strip().casefold() != "y":
-            print("Edit cancelled")
-            return
+        pywikibot.showDiff(current_wikitext, citation_edit.new_wikitext)
+        # confirmation = input("Save this edit? [y/N] ")
+        # if confirmation.strip().casefold() != "y":
+        #     print("Edit cancelled")
+        #     return
         
-        page.text = new_wikitext
+        page.text = citation_edit.new_wikitext
         page.save(
             summary="Add citation for a previously unsupported claim",
             minor=False,
