@@ -36,3 +36,10 @@ class PreparedCitationEdit(BaseModel):
     original_wikitext: str
     new_wikitext: str
     citation: str
+
+
+class CitationSubmissionResult(BaseModel):
+    production: bool
+    success: bool = False
+    revision_id: int | None = None
+    revision_url: str | None = None

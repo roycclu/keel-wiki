@@ -13,7 +13,8 @@ from models import (
     TargetPage,
     CitationTarget,
     WebSearchEvidence,
-    DecisionCitationSupport
+    DecisionCitationSupport,
+    CitationSubmissionResult
 )
 
 from pywikibot import config
@@ -61,7 +62,7 @@ def main():
 
     prepared_citation: PreparedCitationEdit = prepare_citation_edit(target_page, target_citation, web_hits[decision_support.evidence_index])
 
-    submit_with_citation(target_page, prepared_citation)
+    citation_submission_result: CitationSubmissionResult = submit_with_citation(target_page, prepared_citation)
 
 if __name__ == "__main__":
     main()

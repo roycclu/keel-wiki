@@ -2,6 +2,7 @@ import streamlit as st
 from difflib import unified_diff
 
 from models import (
+    CitationSubmissionResult,
     PreparedCitationEdit,
     TargetPage
 )
@@ -15,7 +16,7 @@ from steps import (
 )
 
 from pywikibot import config
-config.simulate = True
+config.simulate = False
 
 
 st.set_page_config(
@@ -23,7 +24,15 @@ st.set_page_config(
     layout="wide",
 )
 
+def clear():
+    st.session_state.pop("target_page", None)
+    st.session_state.pop("prepared_edit", None)
+    st.session_state.pop("submission_result", None)
+
 if st.button("Prepare next review"):
+
+    clear()
+
     with st.spinner("Preparing citation review..."):
         pages = find_citation_needed(limit=2)
         if not pages: 
@@ -63,8 +72,9 @@ if st.button("Prepare next review"):
         st.session_state.prepared_edit = prepared_edit
         st.session_state.explanation = decision.explanation
 
-target_page = st.session_state.get("target_page")
-prepared_edit = st.session_state.get("prepared_edit")
+target_page: TargetPage | None = st.session_state.get("target_page")
+prepared_edit: PreparedCitationEdit | None = st.session_state.get("prepared_edit")
+submission_result: CitationSubmissionResult | None = st.session_state.get("submission_result")
 
 if target_page and prepared_edit:
     st.subheader(target_page.title)
@@ -85,5 +95,30 @@ if target_page and prepared_edit:
     st.subheader("Proposed change")
     st.code(diff, language="diff", wrap_lines=True)
 
-    if st.button("Save citation", type="primary"):
-        submit_with_citation(target_page, prepared_edit)
+    if st.button(
+        "Submit citation", 
+        type="primary",
+        disabled=submission_result is not None,
+    ):
+        with st.spinner("Submitting citation..."):
+            try:
+                submission_result = submit_with_citation(target_page, prepared_edit)
+            except Exception as e:
+                st.exception(e)
+            else:
+                st.session_state.submission_result = submission_result
+                st.session_state.pop("target_page", None)
+                st.session_state.pop("prepared_edit", None)
+                st.rerun()
+
+if submission_result is not None and submission_result.success:
+    if not submission_result.production:
+        st.info("Simulation completed. No Wikipedia edit was saved.")
+
+    else:
+        st.success(f"Wikipedia revision {submission_result.revision_id} was saved.")
+        if submission_result.revision_url is not None:
+            st.link_button(
+                "View saved revision",
+                str(submission_result.revision_url),
+            )

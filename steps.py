@@ -1,5 +1,6 @@
 import json
 import pywikibot
+from pywikibot import config
 import requests
 
 from models import (
@@ -7,13 +8,13 @@ from models import (
     CitationTarget,
     WebSearchEvidence,
     DecisionCitationSupport,
-    PreparedCitationEdit
+    PreparedCitationEdit,
+    CitationSubmissionResult
 )
 
-WIKI_API_BASE_URL: str = "https://test.wikipedia.org/w/api.php"
 WIKI_SITE: str = "wikipedia:en"
 
-def find_citation_needed(limit: int = 15) -> list[dict[str, int]]:
+def find_citation_needed(limit: int = 15) -> list[TargetPage]:
 
 
     site = pywikibot.Site(WIKI_SITE)
@@ -102,7 +103,7 @@ BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
 def search_web(
     citation_target: CitationTarget,
     count: int = 10
-):
+) -> list[WebSearchEvidence]:
 
     excluded_domains = (
         "NOT site:wikipedia.org "
@@ -199,12 +200,6 @@ def judge_support_from_sources(
 
 
 
-# def render_citation(web_hit: WebSearchEvidence, result: DecisionCitationSupport) -> str:
-
-#     return (
-        
-#     )
-
 
 
 def prepare_citation_edit(
@@ -228,43 +223,54 @@ def prepare_citation_edit(
         citation=citation,
     )
 
-import httpx
+
+
+
+
+
 
 def submit_with_citation(
     target_page: TargetPage,
     citation_edit: PreparedCitationEdit
-    ):
-    # async with httpx.AsyncClient() as client:
-        # payload = {
-        # "action": "edit",
-        # "title": target_page.title,
-        # "text": new_wikitext,
-        # "summary": decision_support.explanation,
-        # "baserevid": target_page.base_revid,
-        # "nocreate": 1,
-        # #   "token": csrf_token,
-        # }
+    ) -> CitationSubmissionResult:
 
+    site = pywikibot.Site(WIKI_SITE)
+    page = pywikibot.Page(site, target_page.title)
 
-        site = pywikibot.Site(WIKI_SITE)
-        page = pywikibot.Page(site, target_page.title)
-
-        if page.latest_revision_id != target_page.base_revid:
-            raise RuntimeError(
-                "Wikipedia page changed after it was retrieved"
-            )
-
-        current_wikitext = page.text
-        pywikibot.showDiff(current_wikitext, citation_edit.new_wikitext)
-        # confirmation = input("Save this edit? [y/N] ")
-        # if confirmation.strip().casefold() != "y":
-        #     print("Edit cancelled")
-        #     return
-        
-        page.text = citation_edit.new_wikitext
-        page.save(
-            summary="Add citation for a previously unsupported claim",
-            minor=False,
-            bot=False,
-            nocreate=True
+    if page.latest_revision_id != target_page.base_revid:
+        raise RuntimeError(
+            "Wikipedia page changed after it was retrieved"
         )
+
+    current_wikitext = page.text
+    pywikibot.showDiff(current_wikitext, citation_edit.new_wikitext)
+    # confirmation = input("Save this edit? [y/N] ")
+    # if confirmation.strip().casefold() != "y":
+    #     print("Edit cancelled")
+    #     return
+    
+    page.text = citation_edit.new_wikitext
+    page.save(
+        summary="Add citation for a previously unsupported claim",
+        minor=False,
+        bot=False,
+        nocreate=True
+    )
+
+    if config.simulate:
+        return CitationSubmissionResult(
+            production=False,
+            success=True,
+        )
+
+    revision_id = page.latest_revision_id
+    return CitationSubmissionResult(
+        production=True,
+        success=True,
+        revision_id=revision_id,
+        revision_url=page.permalink(
+            oldid=revision_id,
+            with_protocol=True
+        )
+    )
+    
