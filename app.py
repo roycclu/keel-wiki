@@ -1,3 +1,4 @@
+from pprint import pprint
 import streamlit as st
 from difflib import unified_diff
 
@@ -29,6 +30,8 @@ def clear():
     st.session_state.pop("prepared_edit", None)
     st.session_state.pop("submission_result", None)
 
+    st.session_state.pop("warning", None)
+
 if st.button("Prepare next review"):
 
     clear()
@@ -42,35 +45,44 @@ if st.button("Prepare next review"):
         target_page = pages[0]
         citation_targets = parser_extract_citation_targets(
             target_page,
-            150,
+            250,
             10
         )
+       
         if not citation_targets:
             raise ValueError("No target citations found")
-
         citation_target = citation_targets[0]
+        print("Next citation target")
+        pprint(citation_target.original_template)
+        pprint(citation_target.marker)
+        pprint(citation_target.context)
+
         web_hits = search_web(citation_target)
+        print("Next web hits")
+        pprint(web_hits)
         if not web_hits:
             raise ValueError("No web hits found")
+        
 
         decision = judge_support_from_sources(
             citation_target=citation_target,
             web_hits=web_hits
         )
 
-        if not decision.supports_claim or decision.evidence_index is None:
-            st.warning("No supporting evidence was found")
-            st.stop()
-        
-        prepared_edit = prepare_citation_edit(
-            target_page,
-            citation_target,
-            web_hits[decision.evidence_index]
-        )
+    if not decision.supports_claim or decision.evidence_index is None:
+        st.warning("No supporting evidence was found")
+        st.warning(decision)
+        st.stop()
+    
+    prepared_edit = prepare_citation_edit(
+        target_page,
+        citation_target,
+        web_hits[decision.evidence_index]
+    )
 
-        st.session_state.target_page = target_page
-        st.session_state.prepared_edit = prepared_edit
-        st.session_state.explanation = decision.explanation
+    st.session_state.target_page = target_page
+    st.session_state.prepared_edit = prepared_edit
+    st.session_state.explanation = decision.explanation
 
 target_page: TargetPage | None = st.session_state.get("target_page")
 prepared_edit: PreparedCitationEdit | None = st.session_state.get("prepared_edit")

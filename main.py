@@ -18,15 +18,19 @@ from models import (
 )
 
 from pywikibot import config
-config.simulate = True
+config.simulate = False
 
 
 def main():
     page_targets: list[TargetPage] = find_citation_needed()
     if not page_targets:
         raise ValueError("No target pages found")
-
     target_page = page_targets[0]
+    print("Next page target")
+    pprint(target_page.title)
+    pprint(target_page.url)
+    pprint(target_page.base_revid)
+
     citation_targets: list[CitationTarget] = parser_extract_citation_targets(target_page, 100, 10)
     if not citation_targets:
         raise ValueError("No target citations found")
