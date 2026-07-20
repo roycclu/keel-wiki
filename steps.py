@@ -5,6 +5,7 @@ import requests
 
 from models import (
     TargetPage,
+    CitationTargetSelection,
     CitationTarget,
     WebSearchEvidence,
     DecisionCitationSupport,
@@ -14,19 +15,32 @@ from models import (
 
 WIKI_SITE: str = "wikipedia:en"
 
-def find_citation_needed(limit: int = 15) -> list[TargetPage]:
+from random import choice
+from string import ascii_uppercase
 
+def find_citation_needed(
+    first_letter: str | None = None, 
+    limit: int = 15
+    ) -> list[TargetPage]:
 
     site = pywikibot.Site(WIKI_SITE)
-    template = pywikibot.Page(site, "Template:Citation needed")
 
-    # pprint(template)
-
-    pages = template.getReferences(
-        only_template_inclusion=True,
+    # template = pywikibot.Page(site, "Template:Citation needed")
+    # pages = template.getReferences(
+    #     only_template_inclusion=True,
+    #     namespaces=[0],
+    #     total=limit,    
+    #     content=True
+    # )
+    if first_letter is None:
+        first_letter = choice(ascii_uppercase) 
+        
+    pages = site.search(
+        f'hastemplate:"Citation needed" prefix:{first_letter}',
         namespaces=[0],
-        total=limit,    
-        content=True
+        total=limit, 
+        content=True,
+        sort="random"
     )
 
     target_pages = [
@@ -54,7 +68,7 @@ CITATION_TEMPLATE_NAMES = {
 def parser_extract_citation_targets(
         target_page: TargetPage, 
         context_before_len: int = 200, 
-        context_after_len: int = 200
+        context_after_len: int = 10
     ) -> list[CitationTarget]:
 
     wiki_text = target_page.wikitext
@@ -95,14 +109,55 @@ def parser_extract_citation_targets(
 
 
 
+
+
+
+DECISION_PICK_TARGET_CITATION_FROM_MANY = {
+    "role": "system",
+    "content": "Determine which of the missing citations would be most likely to find web sources that support its claim. "
+                "Pick one one citation and return its index as ordered in the . "
+                "Always pick one. "
+                "Do not invent facts or metadata. "
+}
+
+def pick_one_probable_citation_target(citation_targets: list[CitationTarget]) -> CitationTarget:
+
+    client = OpenAI()
+
+    response = client.responses.parse(
+        model="gpt-5.6",
+        input=[
+            DECISION_PICK_TARGET_CITATION_FROM_MANY,
+            {
+                "role": "user",
+                "content": json.dumps(
+                    [
+                        citation_target.model_dump(mode="json")
+                        for citation_target in citation_targets
+                    ]
+                )
+            },
+        ],
+        text_format=CitationTargetSelection
+    )
+
+    citation_target_selection = response.output_parsed
+    selected_index = citation_target_selection.selected_index
+    if not 0 <= selected_index < len(citation_targets):
+        raise ValueError("Selected citation target index is out of range")
+    return citation_targets[selected_index]
+
+
+
+
 import os
 from dotenv import load_dotenv
 load_dotenv()
 BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
 
-def search_web(
+def search_web_for_citation_support(
     citation_target: CitationTarget,
-    count: int = 10
+    limit: int = 10
 ) -> list[WebSearchEvidence]:
 
     excluded_domains = (
@@ -123,7 +178,7 @@ def search_web(
         },
         params={
             "q": query,
-            "count": count, 
+            "count": limit, 
             "country": "US",
             "search_lang": "en",
             "safesearch": "moderate",
@@ -140,11 +195,11 @@ def search_web(
             {
                 "title": result["title"],
                 "description": result.get("description", ""),
-                "extra_snippets": result.get("extra_snippets") or [],
+                "extra_snippets": result.get("extra_snippets", []),
                 "url": result["url"],
             }
         )
-        for result in raw_results
+        for result in raw_results if result.get("extra_snippets")
     ]
     return web_hits
 
@@ -163,7 +218,7 @@ DECISION_JUDGE_SUPPORT_FROM_SOURCES = {
                 "Do not invent facts or metadata. "
 }
 
-def judge_support_from_sources(
+def judge_support_from_sources_by_llm(
     *,
     citation_target: CitationTarget, 
     web_hits: list[WebSearchEvidence]

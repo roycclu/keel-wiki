@@ -1,6 +1,7 @@
 from pprint import pprint
 import streamlit as st
 from difflib import unified_diff
+from random import choice
 
 from models import (
     CitationSubmissionResult,
@@ -9,15 +10,16 @@ from models import (
 )
 from steps import (
     find_citation_needed,
-    judge_support_from_sources,
+    pick_one_probable_citation_target,
+    judge_support_from_sources_by_llm,
     parser_extract_citation_targets,
     prepare_citation_edit,
-    search_web,
+    search_web_for_citation_support,
     submit_with_citation
 )
 
 from pywikibot import config
-config.simulate = False
+config.simulate = True
 
 
 st.set_page_config(
@@ -42,7 +44,8 @@ if st.button("Prepare next review"):
             st.error("No target pages found")
             st.stop()
         
-        target_page = pages[0]
+        target_page = choice(pages)
+
         citation_targets = parser_extract_citation_targets(
             target_page,
             250,
@@ -50,21 +53,22 @@ if st.button("Prepare next review"):
         )
        
         if not citation_targets:
-            raise ValueError("No target citations found")
-        citation_target = citation_targets[0]
-        print("Next citation target")
+            st.warning("No target citations were found")
+            st.stop()
+        citation_target = pick_one_probable_citation_target(citation_targets)
+        print("Chosen citation target")
         pprint(citation_target.original_template)
         pprint(citation_target.marker)
         pprint(citation_target.context)
 
-        web_hits = search_web(citation_target)
+        web_hits = search_web_for_citation_support(citation_target, limit=10)
         print("Next web hits")
         pprint(web_hits)
         if not web_hits:
-            raise ValueError("No web hits found")
+            st.warning("No web search results were found")
+            st.stop()
         
-
-        decision = judge_support_from_sources(
+        decision = judge_support_from_sources_by_llm(
             citation_target=citation_target,
             web_hits=web_hits
         )

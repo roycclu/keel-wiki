@@ -7,9 +7,11 @@ class TargetPage(BaseModel):
     wikitext: str
     base_revid: int
 
+class CitationTargetSelection(BaseModel):
+    selected_index: int
+    explanation: str
 
-@dataclass(frozen=True)
-class CitationTarget:
+class CitationTarget(BaseModel):
     """A citation market and the local context needed to replace it."""
     title: str
     original_template: str
