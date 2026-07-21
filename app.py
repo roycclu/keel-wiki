@@ -3,11 +3,7 @@ import streamlit as st
 from difflib import unified_diff
 from random import choice
 
-from models import (
-    CitationSubmissionResult,
-    PreparedCitationEdit,
-    TargetPage
-)
+from models import CitationSubmissionResult, PreparedCitationEdit, TargetPage
 from steps import (
     find_citation_needed,
     pick_one_probable_citation_target,
@@ -15,10 +11,11 @@ from steps import (
     parser_extract_citation_targets,
     prepare_citation_edit,
     search_web_for_citation_support,
-    submit_with_citation
+    submit_with_citation,
 )
 
 from pywikibot import config
+
 config.simulate = True
 
 
@@ -27,6 +24,7 @@ st.set_page_config(
     layout="wide",
 )
 
+
 def clear():
     st.session_state.pop("target_page", None)
     st.session_state.pop("prepared_edit", None)
@@ -34,24 +32,20 @@ def clear():
 
     st.session_state.pop("warning", None)
 
-if st.button("Prepare next review"):
 
+if st.button("Prepare next review"):
     clear()
 
     with st.spinner("Preparing citation review..."):
         pages = find_citation_needed(limit=2)
-        if not pages: 
+        if not pages:
             st.error("No target pages found")
             st.stop()
-        
+
         target_page = choice(pages)
 
-        citation_targets = parser_extract_citation_targets(
-            target_page,
-            250,
-            10
-        )
-       
+        citation_targets = parser_extract_citation_targets(target_page, 250, 10)
+
         if not citation_targets:
             st.warning("No target citations were found")
             st.stop()
@@ -67,21 +61,18 @@ if st.button("Prepare next review"):
         if not web_hits:
             st.warning("No web search results were found")
             st.stop()
-        
+
         decision = judge_support_from_sources_by_llm(
-            citation_target=citation_target,
-            web_hits=web_hits
+            citation_target=citation_target, web_hits=web_hits
         )
 
     if not decision.supports_claim or decision.evidence_index is None:
         st.warning("No supporting evidence was found")
         st.warning(decision)
         st.stop()
-    
+
     prepared_edit = prepare_citation_edit(
-        target_page,
-        citation_target,
-        web_hits[decision.evidence_index]
+        target_page, citation_target, web_hits[decision.evidence_index]
     )
 
     st.session_state.target_page = target_page
@@ -90,7 +81,9 @@ if st.button("Prepare next review"):
 
 target_page: TargetPage | None = st.session_state.get("target_page")
 prepared_edit: PreparedCitationEdit | None = st.session_state.get("prepared_edit")
-submission_result: CitationSubmissionResult | None = st.session_state.get("submission_result")
+submission_result: CitationSubmissionResult | None = st.session_state.get(
+    "submission_result"
+)
 
 if target_page and prepared_edit:
     st.subheader(target_page.title)
@@ -104,7 +97,7 @@ if target_page and prepared_edit:
             prepared_edit.original_wikitext.splitlines(keepends=True),
             prepared_edit.new_wikitext.splitlines(keepends=True),
             fromfile="Current Wikipedia text",
-            tofile="Proposed Wikipedia text"
+            tofile="Proposed Wikipedia text",
         )
     )
 
@@ -112,7 +105,7 @@ if target_page and prepared_edit:
     st.code(diff, language="diff", wrap_lines=True)
 
     if st.button(
-        "Submit citation", 
+        "Submit citation",
         type="primary",
         disabled=submission_result is not None,
     ):

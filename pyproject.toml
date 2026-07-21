@@ -11,3 +11,9 @@ dependencies = [
     "requests>=2.34.2",
     "streamlit>=1.59.2",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.15.22",
+]
