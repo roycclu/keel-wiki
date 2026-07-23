@@ -1,5 +1,7 @@
+from datetime import datetime
 from pydantic import BaseModel, Field, HttpUrl
-
+from typing import Literal
+from uuid import UUID
 
 class TargetPage(BaseModel):
     title: str
@@ -50,3 +52,15 @@ class CitationSubmissionResult(BaseModel):
     success: bool = False
     revision_id: int | None = None
     revision_url: str | None = None
+
+class WorkflowRunResult(BaseModel):
+    run_id: UUID
+    started_at: datetime
+    finished_at: datetime | None = None
+    success: bool
+    status: Literal["SUCCESS", "FAILURE"]
+    failed_stage: str | None = None
+    error_type: str | None = None
+    error_message: str | None = None
+    citation_submission_result: CitationSubmissionResult | None = None
+
